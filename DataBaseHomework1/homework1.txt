@@ -1,0 +1,101 @@
+-- Q1
+SELECT DISTINCT ShipName,SUBSTR(ShipName,1,INSTR(ShipName,'-')-1) "SubStr"
+FROM "Order"
+WHERE ShipName LIKE '%-%'
+ORDER BY SubStr;
+
+-- Q2
+SELECT Id, ShipCountry, 
+       CASE WHEN ShipCountry IN ('USA', 'Mexico','Canada')
+            THEN 'NorthAmerica'
+            ELSE 'OtherPlace'
+						END Region
+FROM "Order"
+WHERE Id >= 15445
+ORDER BY Id ASC
+LIMIT 20;
+
+-- Q3
+SELECT s.CompanyName,ROUND(100*((SELECT COUNT(o1.ShipVia)
+											FROM "Order" o1
+											WHERE o1.ShippedDate > o1.RequiredDate AND o1.ShipVia = o.ShipVia)+0.0)/COUNT(o.ShipVia),2) "Percentage"
+FROM Shipper s JOIN "Order" o
+ON s.Id = o.ShipVia
+GROUP BY o.ShipVia
+ORDER BY Percentage DESC;
+
+-- Q4
+SELECT c.CategoryName,COUNT(*) "Number",ROUND(AVG(p.UnitPrice),2) "AvgUnitPrice",ROUND(MIN(p.UnitPrice),2) "MinUnitPrice",ROUND(MAX(p.UnitPrice),2) "MaxUnitPrice",SUM(p.UnitsOnOrder) "TotalUnitsOnOrder"
+FROM Product p JOIN Category c
+ON p.CategoryId = c.Id
+GROUP BY p.CategoryId
+HAVING COUNT(*) > 10
+ORDER BY CategoryId;
+
+-- Q5
+SELECT ProductName,CompanyName,ContactName
+FROM (SELECT ProductName,MIN(OrderDate),CompanyName,ContactName 
+			FROM (SELECT Id,ProductName 
+						FROM  Product 
+						WHERE Discontinued = 1) discp 
+			JOIN OrderDetail od 
+			ON od.ProductId = discp.Id 
+			JOIN 'Order' o 
+			ON o.Id = od.OrderId 
+			JOIN Customer c 
+			ON c.Id = o.CustomerId
+			GROUP BY ProductName) fstevr
+ORDER BY ProductName ASC;
+
+-- Q6
+SELECT Id,OrderDate,PrevOrderDate,ROUND(JULIANDAY(OrderDate)-JULIANDAY(PrevOrderDate),2) 
+FROM (SELECT Id,OrderDate,LAG(OrderDate,1,OrderDate) OVER (ORDER BY OrderDate ASC) PrevOrderDate
+			FROM "Order"
+			WHERE CustomerId = 'BLONP'
+			ORDER BY OrderDate ASC
+			LIMIT 10);
+
+-- Q7
+WITH expenditures AS( 
+    SELECT IFNULL(c.CompanyName,'MISSING_NAME') "CompanyName",o.CustomerId,ROUND(SUM(od.Quantity*od.UnitPrice),2) "TotalExpenditure"
+    FROM "Order" o
+    INNER JOIN OrderDetail od on od.OrderId = o.Id
+    LEFT JOIN  Customer c on c.Id = o.CustomerId
+    GROUP BY o.CustomerId
+		),
+quartiles AS (
+    SELECT * ,NTILE(4) OVER (ORDER BY TotalExpenditure ASC) "ExpenditureQuartile"
+    FROM expenditures
+		)
+SELECT CompanyName,CustomerId,TotalExpenditure
+FROM quartiles
+WHERE ExpenditureQuartile = 1
+ORDER BY TotalExpenditure ASC;
+
+-- Q8
+SELECT r.RegionDescription,e.FirstName,e.LastName,e.BirthDate
+FROM Employee e JOIN EmployeeTerritory et
+ON e.Id = et.EmployeeId
+JOIN Territory t
+ON et.TerritoryId = t.Id
+JOIN Region r
+ON r.Id = t.RegionId
+WHERE e.BirthDate = (SELECT Max(e1.BirthDate)
+											FROM Employee e1 JOIN EmployeeTerritory et1
+											ON e1.Id = et1.EmployeeId
+											JOIN Territory t1
+											ON et1.TerritoryId = t1.Id
+											WHERE t1.RegionId = t.RegionId
+											)
+GROUP BY t.RegionId,et.EmployeeId
+ORDER BY t.RegionId;
+
+-- Q9todo
+SELECT p.ProductName
+FROM Product p JOIN OrderDetail od
+ON p.Id = od.ProductId
+JOIN "Order" o
+ON o.Id = od.OrderId
+JOIN Customer c
+ON c.Id = o.CustomerId
+WHERE c.CompanyName = 'Queen Cozinha' AND Date(o.OrderDate) = '2014-12-25';
